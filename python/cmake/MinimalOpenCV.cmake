@@ -18,8 +18,20 @@ file(TO_CMAKE_PATH "${CIMBAR_OPENCV_PREFIX}" CIMBAR_OPENCV_PREFIX)
 set(OpenCV_STATIC ON)
 set(CIMBAR_OPENCV_PREFIX "${CIMBAR_OPENCV_PREFIX}" CACHE PATH "Install prefix of the minimal static OpenCV" FORCE)
 
-find_package(OpenCV ${CIMBAR_OPENCV_VERSION} EXACT QUIET CONFIG
-	PATHS "${CIMBAR_OPENCV_PREFIX}" NO_DEFAULT_PATH)
+# The Windows install wraps the real config in <arch>/<vc version>/staticlib/, and drops the
+# <arch>/<vc version> part for MSVC versions OpenCV doesn't know yet (e.g. VS 2026), which the
+# wrapper then can't find. So look for the real config (next to OpenCVModules.cmake) directly.
+macro(_cimbar_find_opencv)
+	file(GLOB_RECURSE _cv_modules LIST_DIRECTORIES false "${CIMBAR_OPENCV_PREFIX}/*OpenCVModules.cmake")
+	set(_cv_paths "${CIMBAR_OPENCV_PREFIX}")
+	foreach(_cv_module ${_cv_modules})
+		get_filename_component(_cv_dir "${_cv_module}" DIRECTORY)
+		list(PREPEND _cv_paths "${_cv_dir}")
+	endforeach()
+	find_package(OpenCV ${CIMBAR_OPENCV_VERSION} EXACT ${ARGN} CONFIG PATHS ${_cv_paths} NO_DEFAULT_PATH)
+endmacro()
+
+_cimbar_find_opencv(QUIET)
 
 if(NOT OpenCV_FOUND)
 	set(_cv_work "${CMAKE_BINARY_DIR}/opencv")
@@ -126,8 +138,7 @@ if(NOT OpenCV_FOUND)
 		message(FATAL_ERROR "OpenCV install failed (${_cv_res})")
 	endif()
 
-	find_package(OpenCV ${CIMBAR_OPENCV_VERSION} EXACT REQUIRED CONFIG
-		PATHS "${CIMBAR_OPENCV_PREFIX}" NO_DEFAULT_PATH)
+	_cimbar_find_opencv(REQUIRED)
 endif()
 
 message(STATUS "Using OpenCV ${OpenCV_VERSION} from ${OpenCV_DIR}")

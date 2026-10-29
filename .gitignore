@@ -13,3 +13,7 @@ CTestTestfile.cmake
 Makefile
 callgrind.out*
 cmake_install.cmake
+.opencv-cache/
+*.egg-info/
+__pycache__/
+.pytest_cache/

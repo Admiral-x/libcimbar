@@ -19,6 +19,7 @@ float cimbare_get_aspect_ratio();
 // internal usage
 bool cimbare_auto_scale_window(unsigned padding);
 int cimbare_get_frame_buff(unsigned char** buff);
+int cimbare_get_frame_dims(int* width, int* height, int* channels);
 
 #ifdef __cplusplus
 }

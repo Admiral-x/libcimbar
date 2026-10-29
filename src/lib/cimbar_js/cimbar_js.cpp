@@ -4,9 +4,31 @@
 #include "cimb_translator/Config.h"
 #include "compression/zstd_compressor.h"
 #include "encoder/Encoder.h"
-#include "gui/window_glfw.h"
 #include "util/byte_istream.h"
 #include <sstream>
+
+#ifndef CIMBAR_NO_GL
+#include "gui/window_glfw.h"
+#else
+// headless build (e.g. the python bindings): there is never a window,
+// so cimbare_init_window() fails and the rest of the window paths are skipped.
+namespace cimbar {
+	struct window_glfw
+	{
+		window_glfw(unsigned, unsigned, std::string) {}
+		bool is_good() const { return false; }
+		bool should_close() const { return true; }
+		void auto_scale_to_window(unsigned=0) {}
+		void resize(unsigned, unsigned) {}
+		void rotate(unsigned=1) {}
+		void shake(unsigned=1) {}
+		void clear() {}
+		void show(const cv::Mat&, unsigned) {}
+		unsigned width() const { return 0; }
+		unsigned height() const { return 0; }
+	};
+}
+#endif
 
 namespace {
 	std::shared_ptr<cimbar::window_glfw> _window;
@@ -30,6 +52,10 @@ extern "C" {
 
 int cimbare_init_window(int width, int height)
 {
+#ifdef CIMBAR_NO_GL
+	(void)width; (void)height;
+	return -1;
+#endif
 	if (width <= 0)
 		width = cimbar::Config::image_size_x() + 16;
 	if (height <= 0)
@@ -87,6 +113,17 @@ int cimbare_get_frame_buff(unsigned char** buff)
 
 	*buff = _next->data;
 	return _next->cols * _next->rows * _next->channels();
+}
+
+// dimensions of the frame returned by cimbare_get_frame_buff()
+int cimbare_get_frame_dims(int* width, int* height, int* channels)
+{
+	if (!_next)
+		return -2;
+	*width = _next->cols;
+	*height = _next->rows;
+	*channels = _next->channels();
+	return 0;
 }
 
 // render() and next_frame() could be put in the same function,
@@ -236,6 +273,8 @@ int cimbare_configure(int mode_val, int compression)
 				_window->shake(0);
 		}
 	}
+	else // Config is shared with the decoder, which may have changed it
+		cimbar::Config::update(_modeVal);
 	return 0;
 }
 

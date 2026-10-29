@@ -41,7 +41,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: .opencv-cache
-          key: opencv-${{ matrix.name }}-${{ hashFiles('python/cmake/MinimalOpenCV.cmake') }}
+          key: opencv-v2-${{ matrix.name }}-${{ hashFiles('python/cmake/MinimalOpenCV.cmake') }}
 
       - name: Point the OpenCV build at the cache
         shell: bash
@@ -58,7 +58,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: .opencv-cache
-          key: opencv-${{ matrix.name }}-${{ hashFiles('python/cmake/MinimalOpenCV.cmake') }}
+          key: opencv-v2-${{ matrix.name }}-${{ hashFiles('python/cmake/MinimalOpenCV.cmake') }}
 
       - uses: actions/upload-artifact@v7
         with:

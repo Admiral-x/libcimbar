@@ -44,5 +44,8 @@ manylinux-aarch64-image = "manylinux_2_28"
 # the repository is mounted at /project inside the build container
 environment = { CIMBAR_OPENCV_PREFIX = "/project/.opencv-cache/opencv" }
 
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
+
 [tool.cibuildwheel.macos]
 environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }

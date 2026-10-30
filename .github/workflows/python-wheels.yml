@@ -62,7 +62,7 @@ jobs:
           CIBW_ENVIRONMENT_PASS_LINUX: CIMBAR_OPENCV_PREFIX
 
       - name: Save OpenCV build
-        if: "!cancelled() && steps.opencv-cache.outputs.cache-hit" != 'true' && hashFiles('.opencv-cache/opencv/**') != ''
+        if: ${{ !cancelled() && steps.opencv-cache.outputs.cache-hit != 'true' && hashFiles('.opencv-cache/opencv/**') != '' }}
         uses: actions/cache/save@v6
         with:
           path: .opencv-cache

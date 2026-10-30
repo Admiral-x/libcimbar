@@ -40,12 +40,17 @@ jobs:
 
       # the minimal static OpenCV build is the slow part; keep it between runs. The key covers what the build
       # depends on: the recipe, pyproject (deployment target) and the runner image (compiler)
+      - name: Runner image
+        id: image
+        shell: bash
+        run: echo "image=${ImageOS:-unknown}-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
       - name: Restore OpenCV build
         id: opencv-cache
         uses: actions/cache/restore@v6
         with:
           path: .opencv-cache
-          key: opencv-v3-${{ matrix.name }}-${{ env.ImageOS }}-${{ env.ImageVersion }}-${{ hashFiles('python/cmake/MinimalOpenCV.cmake', 'pyproject.toml') }}
+          key: opencv-v3-${{ matrix.name }}-${{ steps.image.outputs.image }}-${{ hashFiles('python/cmake/MinimalOpenCV.cmake', 'pyproject.toml') }}
 
       - name: Point the OpenCV build at the cache
         shell: bash
@@ -66,7 +71,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: .opencv-cache
-          key: opencv-v3-${{ matrix.name }}-${{ env.ImageOS }}-${{ env.ImageVersion }}-${{ hashFiles('python/cmake/MinimalOpenCV.cmake', 'pyproject.toml') }}
+          key: opencv-v3-${{ matrix.name }}-${{ steps.image.outputs.image }}-${{ hashFiles('python/cmake/MinimalOpenCV.cmake', 'pyproject.toml') }}
 
       - uses: actions/upload-artifact@v7
         with:

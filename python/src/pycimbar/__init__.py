@@ -48,6 +48,17 @@ def _ptr(arr):
     return arr.ctypes.data_as(_native._u8p)
 
 
+def _report_progress():
+    """After a fountain decode, the C API's report is the progress of each file in flight: "[ 0.25,0.5 ]"."""
+    buf = ctypes.create_string_buffer(256)
+    n = lib.cimbard_get_report(ctypes.cast(buf, _native._u8p), len(buf))
+    try:
+        values = [float(v) for v in buf.raw[:n].decode("ascii").strip("[] ").split(",") if v.strip()]
+    except (UnicodeDecodeError, ValueError):
+        return 0.0
+    return min(1.0, max(values, default=0.0))
+
+
 class Encoder:
     """Encodes `data` into an endless stream of cimbar frames.
 
@@ -120,6 +131,7 @@ class Decoder:
         self.frames_seen = 0
         self.frames_decoded = 0  # frames where a cimbar code was found and read
         self.frames_rejected = 0  # ... of those, frames whose data didn't fit the transfer
+        self.progress = 0.0  # share of the file's fountain blocks received so far (1.0 once done)
         with lock:
             _active_decoder = self
             lib.cimbard_configure_decode(self._mode_val)
@@ -163,8 +175,10 @@ class Decoder:
                 self.frames_rejected += 1
                 return None
             if file_id == 0:
+                self.progress = max(self.progress, _report_progress())
                 return None  # need more frames
             self._finish(file_id)
+            self.progress = 1.0
         return self.data
 
     def _finish(self, file_id):

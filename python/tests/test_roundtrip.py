@@ -83,3 +83,13 @@ def test_only_one_active_encoder():
 def test_bad_mode():
     with pytest.raises(ValueError):
         pycimbar.Decoder(mode="nope")
+
+
+def test_progress_rises_until_done():
+    enc = pycimbar.Encoder(os.urandom(60_000))
+    dec = pycimbar.Decoder()
+    seen = []
+    while not dec.done:
+        dec.decode(enc.next_frame())
+        seen.append(dec.progress)
+    assert seen == sorted(seen) and 0 < seen[0] < 1 and seen[-1] == 1.0

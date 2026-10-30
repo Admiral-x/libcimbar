@@ -93,3 +93,11 @@ def test_progress_rises_until_done():
         dec.decode(enc.next_frame())
         seen.append(dec.progress)
     assert seen == sorted(seen) and 0 < seen[0] < 1 and seen[-1] == 1.0
+
+
+@pytest.mark.parametrize("data", [b"", b"x", b"hello cimbar " * 100, bytes(1000), os.urandom(250)])
+def test_tiny_and_repetitive_files_with_a_name(data):
+    # these compress to less than one fountain chunk; libcimbar pads them (with random filler: zeros made
+    # near-uniform codes that did not decode)
+    dec, _ = roundtrip(data, filename="small.txt")
+    assert dec.data == data and dec.filename == "small.txt"

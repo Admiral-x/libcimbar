@@ -81,7 +81,15 @@ public:
 		if (len < 9)
 			len = 9;
 
+		// pseudo-random filler: zstd skips it either way, but a stream that is mostly zeros becomes near-uniform
+		// codes that do not decode (an empty or very compressible file)
 		std::string temp(len-8, '\0');
+		uint32_t x = 0x9E3779B9u;
+		for (char& c : temp)
+		{
+			x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+			c = static_cast<char>(x >> 24);
+		}
 		size_t writ = ZSTD_writeSkippableFrame(_compBuff.data(), _compBuff.size(), temp.data(), temp.size(), 0);
 
 		STREAM::write(_compBuff.data(), writ);

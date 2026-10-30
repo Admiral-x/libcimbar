@@ -28,6 +28,25 @@ Modes: `B` (default), `Bm`, `Bu`, `4C` (the 0.5.x format) and `8C`. The encoder 
 
 libcimbar's C API keeps global state: there is one active `Encoder` and one active `Decoder` per process.
 Creating a new one makes the previous one raise `CimbarError`. Calls are serialized with a lock.
+Pass `encode_id` (0-127) to make an encoder reproducible: the same data, name and id give the same frames.
+
+## Untrusted input
+
+Frames from a camera may come from anyone. The decoder:
+
+- stops decompressing at `max_size` (256 MiB by default; `Decoder(max_size=...)`), since a few crafted frames
+  can otherwise expand to gigabytes;
+- reports corrupt or truncated compressed data as a failed stream instead of returning partial data: `decode()`
+  returns None, `error` says why, `files_failed` counts it, and decoding starts over;
+- reduces `filename` to a plain name (no directories, no control characters). It is still untrusted: sanitize it
+  for your file system (reserved names such as `CON` on Windows) and never overwrite files blindly;
+- does not check the file end to end. The compressed stream and the codes have error correction, but if you need
+  integrity, put a checksum inside the data (optical-transfer does: size + SHA-256).
+
+Known limits, from libcimbar itself: libcimbar keeps up to 8 transfers in flight, so crafted frames can make it hold
+up to roughly 0.5 GB, and a frame of another transfer can take the slot of the one being received; a file
+of zeros that compresses to almost nothing can still, rarely, produce codes that do not decode (6 cases in a sweep
+of 507 sizes and contents; add a little incompressible data to be safe).
 
 ## Building
 

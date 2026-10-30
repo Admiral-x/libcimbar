@@ -24,7 +24,7 @@ from . import _native
 from ._native import lib, lock
 
 __all__ = ["MODES", "Encoder", "Decoder", "CimbarError"]
-__version__ = "0.6.7"
+__version__ = "0.6.7.post1"
 
 # libcimbar's mode ids. B is the default, 4C is the 0.5.x format.
 MODES = {"B": 68, "Bm": 67, "Bu": 66, "4C": 4, "8C": 8}
@@ -46,6 +46,18 @@ def _mode_value(mode):
 
 def _ptr(arr):
     return arr.ctypes.data_as(_native._u8p)
+
+
+MAX_FILENAME = 255  # bytes of UTF-8
+DEFAULT_MAX_SIZE = 256 << 20
+_DECOMPRESS_ERRORS = {-15: "corrupt compressed data", -16: "the compressed data ends early"}
+
+
+def _plain_name(name):
+    """The last path component of an untrusted name, without control characters; None when nothing is left."""
+    name = "".join(ch for ch in name if ch >= " " and ch != "\x7f")
+    name = name.replace("\\", "/").rsplit("/", 1)[-1].rsplit(":", 1)[-1].strip().rstrip(". ")
+    return name or None
 
 
 def _report_progress():
@@ -72,8 +84,14 @@ class Encoder:
         self._compression = -1 if compression is None else int(compression)
         self.frames = 0
 
+        if isinstance(data, (int, str)):  # bytes(10**9) would quietly be a gigabyte of zeros
+            raise TypeError(f"data must be bytes-like, not {type(data).__name__}")
         buf = np.frombuffer(bytes(data), dtype=np.uint8)
         name = filename.encode("utf-8") if filename else b""
+        if len(name) > MAX_FILENAME:  # the decoder reads at most ~500 bytes; longer names break the stream
+            raise ValueError(f"filename is {len(name)} bytes in UTF-8; at most {MAX_FILENAME} fit")
+        if encode_id is not None and not 0 <= encode_id <= 127:
+            raise ValueError("encode_id must be within 0..127 (or None for automatic)")
         with lock:
             _active_encoder = self
             self._check(lib.cimbare_configure(self._mode_val, self._compression), "configure")
@@ -120,14 +138,23 @@ class Encoder:
 
 
 class Decoder:
-    """Reassembles a file from cimbar frames (camera images, screenshots or encoder output)."""
+    """Reassembles a file from cimbar frames (camera images, screenshots or encoder output).
 
-    def __init__(self, mode="B"):
+    Everything in the frames is untrusted. The decompressed file is limited to `max_size` bytes (a few crafted
+    frames can otherwise expand to gigabytes); `filename` is reduced to a plain name, but callers should still
+    sanitize it for their file system. A stream that fails (corrupt or truncated compressed data, or more than
+    `max_size`) is dropped: `error` says why, `files_failed` counts them, and decoding starts over.
+    """
+
+    def __init__(self, mode="B", max_size=DEFAULT_MAX_SIZE):
         global _active_decoder
         self.mode = mode
         self._mode_val = _mode_value(mode)
+        self.max_size = max_size
         self.data = None
         self.filename = None
+        self.error = None
+        self.files_failed = 0
         self.frames_seen = 0
         self.frames_decoded = 0  # frames where a cimbar code was found and read
         self.frames_rejected = 0  # ... of those, frames whose data didn't fit the transfer
@@ -177,7 +204,14 @@ class Decoder:
             if file_id == 0:
                 self.progress = max(self.progress, _report_progress())
                 return None  # need more frames
-            self._finish(file_id)
+            try:
+                self._finish(file_id)
+            except CimbarError as exc:
+                # a bad stream must not leave the decoder stuck on it: drop everything and start over
+                self.error, self.files_failed, self.progress = str(exc), self.files_failed + 1, 0.0
+                self.filename = None
+                lib.cimbard_reset()
+                return None
             self.progress = 1.0
         return self.data
 
@@ -186,15 +220,18 @@ class Decoder:
         res = lib.cimbard_get_filename(file_id, name, len(name))
         if res < 0:
             raise CimbarError(f"cimbard_get_filename failed ({res})")
-        self.filename = name.raw[:res].decode("utf-8", "replace") or None
+        filename = _plain_name(name.raw[:res].decode("utf-8", "replace"))
 
         out = np.empty(lib.cimbard_get_decompress_bufsize(), dtype=np.uint8)
-        parts = []
+        data = bytearray()
         while True:
             res = lib.cimbard_decompress_read(file_id, _ptr(out), len(out))
             if res < 0:
-                raise CimbarError(f"cimbard_decompress_read failed ({res})")
+                raise CimbarError(f"cimbard_decompress_read failed ({res}): "
+                                  f"{_DECOMPRESS_ERRORS.get(res, 'no file')}")
             if res == 0:
                 break
-            parts.append(out[:res].tobytes())
-        self.data = b"".join(parts)
+            if self.max_size is not None and len(data) + res > self.max_size:
+                raise CimbarError(f"the file decompresses to more than max_size ({self.max_size:,} bytes)")
+            data += out[:res].tobytes()
+        self.filename, self.data = filename, bytes(data)

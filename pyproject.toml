@@ -4,11 +4,12 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "pycimbar"
-version = "0.6.7"
+version = "0.6.7.post1"
 description = "Python bindings for libcimbar (color icon matrix barcodes)"
 readme = "python/README.md"
 license = "MPL-2.0"
-license-files = ["LICENSE"]
+# the wheel links these statically: their licenses travel with it
+license-files = ["LICENSE", "python/LICENSE-OpenCV", "src/third_party_lib/*/LICENSE*", "src/third_party_lib/zstd/COPYING"]
 requires-python = ">=3.9"
 dependencies = ["numpy>=1.21"]
 
@@ -41,8 +42,6 @@ test-command = "pytest -v"
 [tool.cibuildwheel.linux]
 manylinux-x86_64-image = "manylinux_2_28"
 manylinux-aarch64-image = "manylinux_2_28"
-# the repository is mounted at /project inside the build container
-environment = { CIMBAR_OPENCV_PREFIX = "/project/.opencv-cache/opencv" }
 
 [tool.cibuildwheel.windows]
 archs = ["AMD64"]

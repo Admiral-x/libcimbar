@@ -141,4 +141,8 @@ if(NOT OpenCV_FOUND)
 	_cimbar_find_opencv(REQUIRED)
 endif()
 
+get_target_property(_cv_type opencv_core TYPE)
+if(NOT _cv_type STREQUAL "STATIC_LIBRARY")  # e.g. a prefix that holds a system-wide, shared OpenCV
+	message(FATAL_ERROR "the OpenCV in ${OpenCV_DIR} is ${_cv_type}, not static; point CIMBAR_OPENCV_PREFIX elsewhere")
+endif()
 message(STATUS "Using OpenCV ${OpenCV_VERSION} from ${OpenCV_DIR}")

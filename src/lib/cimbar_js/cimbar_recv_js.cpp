@@ -257,8 +257,11 @@ int cimbard_decompress_read(uint32_t id, unsigned char* buffer, unsigned size)
 		return -14;
 
 	_dec->str(std::string());
-	_dec->write_once();
+	if (!_dec->write_once())
+		return -15; // corrupt compressed data
 	std::string temp = _dec->str();
+	if (temp.empty() and !_dec->frame_complete())
+		return -16; // the compressed data ends mid-frame
 	if (size > temp.size())
 		size = temp.size();
 	std::copy(temp.data(), temp.data()+size, buffer);

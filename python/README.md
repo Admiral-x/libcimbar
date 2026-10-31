@@ -44,9 +44,7 @@ Frames from a camera may come from anyone. The decoder:
   integrity, put a checksum inside the data (optical-transfer does: size + SHA-256).
 
 Known limits, from libcimbar itself: libcimbar keeps up to 8 transfers in flight, so crafted frames can make it hold
-up to roughly 0.5 GB, and a frame of another transfer can take the slot of the one being received; a file
-of zeros that compresses to almost nothing can still, rarely, produce codes that do not decode (6 cases in a sweep
-of 507 sizes and contents; add a little incompressible data to be safe).
+up to roughly 0.5 GB, and a frame of another transfer can take the slot of the one being received.
 
 ## Building
 

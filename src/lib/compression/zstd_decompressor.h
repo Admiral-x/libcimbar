@@ -37,6 +37,7 @@ public:
 					_isError = true;
 					return false; // we're not making progress, mayday mayday
 				}
+				_frameComplete = (res == 0);
 
 				if (output.pos > 0)
 				{
@@ -98,6 +99,12 @@ public:
 		return !_isError and STREAM::good();
 	}
 
+	// false while the last frame fed in still expects more input (a truncated stream)
+	bool frame_complete() const
+	{
+		return _frameComplete;
+	}
+
 	std::string last_error() const
 	{
 		return _lastError.str();
@@ -110,6 +117,7 @@ protected:
 	std::string_view _inBuff;
 
 	bool _isError = false;
+	bool _frameComplete = true;
 	std::stringstream _lastError;
 };
 

@@ -54,6 +54,9 @@
 // Platform/Architecture
 
 #if defined(__ARM_ARCH) || defined(__ARM_NEON) || defined(__ARM_NEON__)
+    #if defined(__APPLE__) && !defined(IOS)
+        #define IOS /* Apple silicon: NEON is always there, and there's no <elf.h> */
+    #endif
     #if !defined IOS
         #define LINUX_ARM
     #endif

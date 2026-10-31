@@ -34,7 +34,7 @@ endif(MSVC)
 find_library(FEC fec)
 CHECK_LIBRARY_EXISTS(FEC dotprod "" HAVE_LIBFEC)
 
-if(NOT CMAKE_CROSSCOMPILING)
+if(NOT CMAKE_CROSSCOMPILING AND NOT CIMBAR_PORTABLE)
   # Check if host machine can compile with SSE 4.1 intrinsic
   cmake_push_check_state(RESET)
   set(CMAKE_REQUIRED_DEFINITIONS -march=native)

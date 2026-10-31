@@ -206,11 +206,12 @@ int64_t cimbard_fountain_decode(const unsigned char* buffer, unsigned size)
 		res = _sink->decode_frame(reinterpret_cast<const char*>(buffer+i), chunkSize);
 	}
 
-	std::cout << "fountain decode res is " << res << std::endl;
-
 	// res will be the file id on completion, 0 otherwise
 	_reporting = fmt::format("[ {} ]", turbo::str::join(_sink->get_progress(), ','));
+#ifndef CIMBAR_QUIET
+	std::cout << "fountain decode res is " << res << std::endl;
 	std::cout << _reporting << std::endl;
+#endif
 	return res;
 }
 
@@ -256,8 +257,11 @@ int cimbard_decompress_read(uint32_t id, unsigned char* buffer, unsigned size)
 		return -14;
 
 	_dec->str(std::string());
-	_dec->write_once();
+	if (!_dec->write_once())
+		return -15; // corrupt compressed data
 	std::string temp = _dec->str();
+	if (temp.empty() and !_dec->frame_complete())
+		return -16; // the compressed data ends mid-frame
 	if (size > temp.size())
 		size = temp.size();
 	std::copy(temp.data(), temp.data()+size, buffer);
@@ -283,7 +287,19 @@ int cimbard_configure_decode(int mode_val)
 		cimbar::Config::update(mode_val);
 		_sink.reset();
 	}
+	else // Config is shared with the encoder, which may have changed it
+		cimbar::Config::update(_modeVal);
 
+	return 0;
+}
+
+// forget all partially (and fully) decoded files
+int cimbard_reset()
+{
+	_sink.reset();
+	_dec.reset();
+	_reassembled.clear();
+	_decId = 0;
 	return 0;
 }
 

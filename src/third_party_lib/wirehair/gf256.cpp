@@ -314,8 +314,9 @@ static void gf256_architecture_init()
     }
 #endif
 
-#if defined(LINUX_ARM)
-    // Check for NEON support on other ARM/Linux platforms
+#if defined(LINUX_ARM) && !defined(__aarch64__)
+    // Check for NEON support on other ARM/Linux platforms (aarch64 always has it; the check below reads
+    // 32-bit auxv records and the 32-bit HWCAP_NEON bit, which would turn it off there)
     checkLinuxARMNeonCapabilities(CpuHasNeon);
 #endif
 

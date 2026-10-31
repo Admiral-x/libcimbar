@@ -7,6 +7,12 @@ endif()
 project ( libcimbar )
 enable_testing()
 
+# GUI tools (cimbar_send, cimbar_recv, cimbar_recv2) need GLFW + OpenGL (ANGLE on MSVC).
+# Turn this off for a CLI-only build whose only external dependency is OpenCV.
+option(BUILD_GUI "Build the GLFW/OpenGL GUI tools" ON)
+# the command line tools also need OpenCV's imgcodecs (for reading/writing image files)
+option(BUILD_CLI "Build the command line tools" ON)
+
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -47,7 +53,9 @@ else()  # if not wasm, go find opencv. 3 or 4 should both work
 	include_directories(${OpenCV_INCLUDE_DIRS})
 endif()
 
-if(MSVC)
+if(NOT BUILD_GUI)
+	set(PLATFORM_GL "")
+elseif(MSVC)
 	find_package(glfw3 CONFIG REQUIRED)
 	find_package(unofficial-angle CONFIG REQUIRED)
 	set(PLATFORM_GL unofficial::angle::libGLESv2 unofficial::angle::libEGL)
@@ -85,12 +93,10 @@ set (PROJECTS
 	src/lib/bit_file
 	src/lib/chromatic_adaptation
 	src/lib/cimb_translator
-	src/lib/cimbar_js
 	src/lib/compression
 	src/lib/encoder
 	src/lib/extractor
 	src/lib/fountain
-	src/lib/gui
 	src/lib/image_hash
 	src/lib/serialize
 	src/lib/util
@@ -104,16 +110,32 @@ set (PROJECTS
 	src/third_party_lib/zstd
 )
 
-if(NOT DEFINED USE_WASM)
+if(BUILD_CLI AND NOT DEFINED USE_WASM)
 set(PROJECTS
 	${PROJECTS}
 
 	src/exe/cimbar
 	src/exe/cimbar_extract
+	src/exe/build_image_assets
+)
+endif()
+
+if(BUILD_GUI OR DEFINED USE_WASM)
+set(PROJECTS
+	${PROJECTS}
+
+	src/lib/cimbar_js
+	src/lib/gui
+)
+endif()
+
+if(BUILD_GUI AND NOT DEFINED USE_WASM)
+set(PROJECTS
+	${PROJECTS}
+
 	src/exe/cimbar_recv
 	src/exe/cimbar_recv2
 	src/exe/cimbar_send
-	src/exe/build_image_assets
 )
 endif()
 
@@ -126,7 +148,7 @@ foreach(proj ${PROJECTS})
 	add_subdirectory(${proj} build/${proj})
 endforeach()
 
-if(MSVC)
+if(MSVC AND BUILD_GUI)
 	install(FILES "${ANGLE_EGL_RELEASE_DLL}" DESTINATION bin CONFIGURATIONS Release RelWithDebInfo MinSizeRel)
 	install(FILES "${ANGLE_EGL_DEBUG_DLL}" DESTINATION bin CONFIGURATIONS Debug)
 endif()

@@ -55,13 +55,20 @@ set(GEN_TABLES
         gf256.h
         )
 
-if(NOT ANDROID AND NOT USE_WASM)
+if(NOT ANDROID AND NOT USE_WASM AND NOT CIMBAR_PORTABLE)
     set(ARCH_NATIVE "-march=native")
 endif()
 
 if(MSVC)
 else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ARCH_NATIVE}")
+endif()
+
+# portable x86 builds: gf256 checks for SSSE3 at runtime before its SSSE3 code, but needs the intrinsics to compile.
+# The flag covers the whole file, so the compiler may use SSSE3 elsewhere in it: x86_64 wheels need an SSSE3 CPU
+# (any x86_64 CPU since about 2008). AVX2 code is left out (it is only built with -mavx2 or -march=native).
+if(CIMBAR_PORTABLE AND NOT MSVC AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64|i.86)$")
+    set_source_files_properties(gf256.cpp PROPERTIES COMPILE_OPTIONS "-mssse3")
 endif()
 
 add_library(wirehair ${LIB_SOURCE_FILES})

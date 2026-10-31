@@ -1,0 +1,92 @@
+name: python wheels
+
+on:
+  push:
+    paths:
+      - "python/**"
+      - "src/**"
+      - "CMakeLists.txt"
+      - "pyproject.toml"
+      - ".github/workflows/python-wheels.yml"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wheels:
+    name: wheel ${{ matrix.name }}
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            runs-on: ubuntu-latest
+          - name: linux-aarch64
+            runs-on: ubuntu-24.04-arm
+          - name: windows-x86_64
+            runs-on: windows-latest
+          - name: macos-arm64
+            runs-on: macos-latest
+          - name: macos-x86_64
+            runs-on: macos-15-intel
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # the minimal static OpenCV build is the slow part; keep it between runs. The key covers what the build
+      # depends on: the recipe, pyproject (deployment target) and the runner image (compiler)
+      - name: Runner image
+        id: image
+        shell: bash
+        run: echo "image=${ImageOS:-unknown}-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore OpenCV build
+        id: opencv-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .opencv-cache
+          key: opencv-v3-${{ matrix.name }}-${{ steps.image.outputs.image }}-${{ hashFiles('python/cmake/MinimalOpenCV.cmake', 'pyproject.toml') }}
+
+      - name: Point the OpenCV build at the cache
+        shell: bash
+        run: |
+          root="$PWD"
+          if [ "$RUNNER_OS" = "Windows" ]; then root="$(cygpath -m "$PWD")"; fi
+          # Linux builds run in a container that sees the host's file system under /host
+          if [ "$RUNNER_OS" = "Linux" ]; then root="/host$PWD"; fi
+          echo "CIMBAR_OPENCV_PREFIX=$root/.opencv-cache/opencv" >> "$GITHUB_ENV"
+
+      - name: Build and test wheel
+        uses: pypa/cibuildwheel@v4.3.5
+        env:
+          CIBW_ENVIRONMENT_PASS_LINUX: CIMBAR_OPENCV_PREFIX
+
+      - name: Save OpenCV build
+        if: ${{ !cancelled() && steps.opencv-cache.outputs.cache-hit != 'true' && hashFiles('.opencv-cache/opencv/**') != '' }}
+        uses: actions/cache/save@v6
+        with:
+          path: .opencv-cache
+          key: opencv-v3-${{ matrix.name }}-${{ steps.image.outputs.image }}-${{ hashFiles('python/cmake/MinimalOpenCV.cmake', 'pyproject.toml') }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheel-${{ matrix.name }}
+          path: wheelhouse/*.whl
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build sdist
+        run: pipx run build --sdist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sdist
+          path: dist/*.tar.gz
